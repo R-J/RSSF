@@ -31,10 +31,10 @@ interface ReaderApi {
     suspend fun categories(): JsonElement
 
     @POST("api/v1/categories")
-    suspend fun createCategory(@Body body: Map<String, Any>): JsonElement
+    suspend fun createCategory(@Body body: CategoryCreateRequest): JsonElement
 
     @PATCH("api/v1/categories/{id}")
-    suspend fun updateCategory(@Path("id") id: Long, @Body body: Map<String, Any?>): JsonElement
+    suspend fun updateCategory(@Path("id") id: Long, @Body body: CategoryUpdateRequest): JsonElement
 
     @DELETE("api/v1/categories/{id}")
     suspend fun deleteCategory(@Path("id") id: Long)
@@ -43,10 +43,10 @@ interface ReaderApi {
     suspend fun feeds(): JsonElement
 
     @POST("api/v1/feeds")
-    suspend fun createFeed(@Body body: Map<String, Any?>): JsonElement
+    suspend fun createFeed(@Body body: FeedCreateRequest): JsonElement
 
     @PATCH("api/v1/feeds/{id}")
-    suspend fun updateFeed(@Path("id") id: Long, @Body body: Map<String, Any?>): JsonElement
+    suspend fun updateFeed(@Path("id") id: Long, @Body body: FeedUpdateRequest): JsonElement
 
     @DELETE("api/v1/feeds/{id}")
     suspend fun deleteFeed(@Path("id") id: Long)

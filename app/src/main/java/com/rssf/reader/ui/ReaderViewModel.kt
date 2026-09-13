@@ -43,6 +43,22 @@ class ReaderViewModel(private val repository: ReaderRepository) : ViewModel() {
     fun search(query: String) = viewModelScope.launch { if (query.isBlank()) refresh() else runCatching { _entries.value = repository.search(query) }.onFailure { _message.value = "Search failed" } }
     fun clearMessage() { _message.value = null }
 
+    fun createCategory(name: String) = admin { repository.createCategory(name); refreshLists() }
+    fun renameCategory(id: Long, name: String) = admin { repository.renameCategory(id, name); refreshLists() }
+    fun deleteCategory(id: Long) = admin { repository.deleteCategory(id); refreshLists() }
+    fun createFeed(url: String, categoryId: Long?) = admin { repository.createFeed(url, categoryId); refreshLists() }
+    fun renameFeed(id: Long, title: String) = admin { repository.renameFeed(id, title); refreshLists() }
+    fun deleteFeed(id: Long) = admin { repository.deleteFeed(id); refreshLists() }
+
+    private fun admin(action: suspend () -> Unit) = viewModelScope.launch {
+        runCatching { action() }.onFailure { _message.value = it.message ?: "Could not update RSSF" }
+    }
+
+    private suspend fun refreshLists() {
+        _categories.value = repository.categories()
+        _feeds.value = repository.feeds()
+    }
+
     companion object {
         fun factory(context: Context) = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST") override fun <T : ViewModel> create(modelClass: Class<T>): T = ReaderViewModel(ReaderRepository(context)) as T

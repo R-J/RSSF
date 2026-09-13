@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.rssf.reader.BuildConfig
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -25,7 +26,7 @@ class ReaderRepository(private val context: Context) {
 
     init {
         val auth = Interceptor { chain ->
-            val token = context.authStore.data.first()[accessKey]
+            val token = runBlocking { context.authStore.data.first()[accessKey] }
             val request = chain.request().newBuilder().apply {
                 if (!token.isNullOrBlank()) addHeader("Authorization", "Bearer $token")
             }.build()
@@ -60,6 +61,36 @@ class ReaderRepository(private val context: Context) {
 
     suspend fun entries(): List<Entry> = cachedList(entriesKey) { api.entries() }.map { it.toEntry() }
     suspend fun search(query: String): List<Entry> = api.search(query).asArray().map { it.toEntry() }
+
+    suspend fun createCategory(name: String) {
+        api.createCategory(CategoryCreateRequest(name))
+        categories()
+    }
+
+    suspend fun renameCategory(id: Long, name: String) {
+        api.updateCategory(id, CategoryUpdateRequest(name = name))
+        categories()
+    }
+
+    suspend fun deleteCategory(id: Long) {
+        api.deleteCategory(id)
+        categories()
+    }
+
+    suspend fun createFeed(url: String, categoryId: Long?) {
+        api.createFeed(FeedCreateRequest(url, categoryId))
+        feeds()
+    }
+
+    suspend fun renameFeed(id: Long, title: String) {
+        api.updateFeed(id, FeedUpdateRequest(title = title))
+        feeds()
+    }
+
+    suspend fun deleteFeed(id: Long) {
+        api.deleteFeed(id)
+        feeds()
+    }
 
     private suspend fun cachedList(key: androidx.datastore.preferences.core.Preferences.Key<String>, fetch: suspend () -> kotlinx.serialization.json.JsonElement): List<kotlinx.serialization.json.JsonElement> {
         return runCatching { fetch().also { value -> context.authStore.edit { it[key] = value.toString() } }.asArray() }

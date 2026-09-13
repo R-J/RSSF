@@ -10,6 +10,18 @@ data class TokenResponse(
 )
 
 @Serializable
+data class CategoryCreateRequest(val name: String, val sort_order: Int = 0)
+
+@Serializable
+data class CategoryUpdateRequest(val name: String? = null, val sort_order: Int? = null)
+
+@Serializable
+data class FeedCreateRequest(val url: String, val category_id: Long? = null)
+
+@Serializable
+data class FeedUpdateRequest(val title: String? = null, val category_id: Long? = null, val sort_order: Int? = null)
+
+@Serializable
 data class LoginRequest(
     val username: String,
     val password: String,

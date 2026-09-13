@@ -1,0 +1,23 @@
+{
+  "name": "RSSF Android",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "."
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "fwcd.kotlin",
+        "vscjava.vscode-gradle",
+        "redhat.java"
+      ],
+      "settings": {
+        "java.configuration.updateBuildConfiguration": "automatic",
+        "kotlin.languageServer.enabled": true
+      }
+    }
+  },
+  "forwardPorts": [],
+  "postCreateCommand": "gradle :app:tasks --no-daemon --console=plain",
+  "remoteUser": "vscode"
+}

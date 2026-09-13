@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Button
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.Divider
 import androidx.compose.material.DrawerValue
 import androidx.compose.material.Icon
@@ -25,6 +26,7 @@ import androidx.compose.material.ModalDrawer
 import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
+import androidx.compose.material.TextButton
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -56,6 +58,8 @@ private val Panel = Color(0xFF191919)
 private val DividerColor = Color(0xFF252525)
 private val Muted = Color(0xFF9E9E9E)
 
+private enum class AdminDialogKind { NewCategory, NewFeed, EditCategory, EditFeed }
+
 @Composable
 fun ReaderApp(context: Context, model: ReaderViewModel = viewModel(factory = ReaderViewModel.factory(context))) {
     val authorized by model.authorized.collectAsState()
@@ -82,14 +86,32 @@ private fun LoginScreen(onLogin: (String, String) -> Unit) {
 
 @Composable
 private fun ReaderHome(model: ReaderViewModel) {
-    val drawer = remember { androidx.compose.material.rememberDrawerState(DrawerValue.Closed) }
+    val drawer = androidx.compose.material.rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val categories by model.categories.collectAsState()
+    val feeds by model.feeds.collectAsState()
+    val entries by model.entries.collectAsState()
     var editMode by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("Today") }
+    var adminDialog by remember { mutableStateOf<AdminDialogKind?>(null) }
+    var selectedCategory by remember { mutableStateOf<Category?>(null) }
+    var selectedFeed by remember { mutableStateOf<Feed?>(null) }
     ModalDrawer(drawerState = drawer, drawerContent = {
-        ReaderDrawer(model.categories.collectAsState().value, model.feeds.collectAsState().value, editMode, { editMode = !editMode }, { editMode = false }, { title = it; scope.launch { drawer.close() } }, { model.logout() })
+        ReaderDrawer(
+            categories,
+            feeds,
+            editMode,
+            { editMode = !editMode },
+            { editMode = false },
+            { title = it; scope.launch { drawer.close() } },
+            { model.logout() },
+            { adminDialog = AdminDialogKind.NewCategory },
+            { adminDialog = AdminDialogKind.NewFeed },
+            { selectedCategory = it; adminDialog = AdminDialogKind.EditCategory },
+            { selectedFeed = it; adminDialog = AdminDialogKind.EditFeed }
+        )
     }) {
         Scaffold(topBar = {
             TopAppBar(backgroundColor = Panel, title = {
@@ -99,12 +121,23 @@ private fun ReaderHome(model: ReaderViewModel) {
                 IconButton({ searchOpen = !searchOpen; if (!searchOpen) { query = ""; model.refresh() } }) { Icon(if (searchOpen) Icons.Default.ArrowBack else Icons.Default.Search, "Search") }
                 IconButton({ model.refresh() }) { Icon(Icons.Default.MoreVert, "More") }
             })
-        }) { padding -> ArticleList(model.entries.collectAsState().value, Modifier.padding(padding)) }
+        }) { padding -> ArticleList(entries, Modifier.padding(padding)) }
+    }
+    when (adminDialog) {
+        AdminDialogKind.NewCategory -> AdminDialog("New category", "Name", "", { value -> model.createCategory(value) }, { adminDialog = null })
+        AdminDialogKind.NewFeed -> AdminDialog("Add feed", "RSS URL", "", { value -> model.createFeed(value, null) }, { adminDialog = null })
+        AdminDialogKind.EditCategory -> selectedCategory?.let { category -> AdminDialog("Edit category", "Name", category.name, { value -> model.renameCategory(category.id, value) }, { adminDialog = null }, { model.deleteCategory(category.id) }) }
+        AdminDialogKind.EditFeed -> selectedFeed?.let { feed -> AdminDialog("Edit feed", "Title", feed.title, { value -> model.renameFeed(feed.id, value) }, { adminDialog = null }, { model.deleteFeed(feed.id) }) }
+        null -> Unit
     }
 }
 
 @Composable
-private fun ReaderDrawer(categories: List<Category>, feeds: List<Feed>, editMode: Boolean, toggleEdit: () -> Unit, done: () -> Unit, navigate: (String) -> Unit, logout: () -> Unit) {
+private fun ReaderDrawer(
+    categories: List<Category>, feeds: List<Feed>, editMode: Boolean, toggleEdit: () -> Unit, done: () -> Unit,
+    navigate: (String) -> Unit, logout: () -> Unit, addCategory: () -> Unit, addFeed: () -> Unit,
+    editCategory: (Category) -> Unit, editFeed: (Feed) -> Unit
+) {
     Column(Modifier.fillMaxHeight().width(320.dp).background(Page)) {
         Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 24.dp, vertical = 22.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
             Text("RSSF", color = Color.White, fontSize = 21.sp)
@@ -116,13 +149,34 @@ private fun ReaderDrawer(categories: List<Category>, feeds: List<Feed>, editMode
         Divider(color = DividerColor, modifier = Modifier.padding(vertical = 14.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("FEEDS", color = Muted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            if (editMode) Icon(Icons.Default.Add, "Add feed", tint = Color(0xFF03A9F4))
+            if (editMode) Row {
+                Text("Category", color = Color(0xFF03A9F4), modifier = Modifier.clickable(onClick = addCategory).padding(end = 12.dp))
+                Text("Feed", color = Color(0xFF03A9F4), modifier = Modifier.clickable(onClick = addFeed))
+            }
         }
         DrawerItem("All", Icons.Default.Menu) { navigate("All") }
-        categories.forEach { category -> DrawerItem(category.name, Icons.Default.ArrowBack, category.unread) { navigate(category.name) } }
+        categories.forEach { category -> DrawerItem(category.name, Icons.Default.ArrowBack, category.unread) { if (editMode) editCategory(category) else navigate(category.name) } }
         if (categories.isEmpty()) listOf("News", "Gadgets", "Develop").forEach { DrawerItem(it, Icons.Default.ArrowBack) { navigate(it) } }
+        feeds.forEach { feed -> DrawerItem(feed.title, Icons.Default.BookmarkBorder, feed.unread) { if (editMode) editFeed(feed) else navigate(feed.title) } }
         if (editMode) { Spacer(Modifier.weight(1f)); Text("Sign out", color = Color(0xFFEF5350), modifier = Modifier.padding(24.dp).clickable { logout() }) }
     }
+}
+
+@Composable
+private fun AdminDialog(title: String, label: String, initial: String, submit: (String) -> Unit, dismiss: () -> Unit, delete: (() -> Unit)? = null) {
+    var value by remember(title, initial) { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = dismiss,
+        title = { Text(title) },
+        text = { OutlinedTextField(value, { value = it }, label = { Text(label) }, singleLine = true) },
+        confirmButton = {
+            Row {
+                if (delete != null) TextButton(onClick = { delete(); dismiss() }) { Text("DELETE", color = Color(0xFFEF5350)) }
+                TextButton(onClick = { if (value.isNotBlank()) { submit(value.trim()); dismiss() } }) { Text("SAVE") }
+            }
+        },
+        dismissButton = { TextButton(onClick = dismiss) { Text("CANCEL") } }
+    )
 }
 
 @Composable
