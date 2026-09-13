@@ -17,9 +17,10 @@ import okhttp3.MediaType.Companion.toMediaType
 private val Context.authStore by preferencesDataStore("auth")
 class ReaderRepository(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    private val api: ReaderApi
+    private var api: ReaderApi
     private val accessKey = stringPreferencesKey("access_token")
     private val refreshKey = stringPreferencesKey("refresh_token")
+    private val serverKey = stringPreferencesKey("server_url")
     private val categoriesKey = stringPreferencesKey("cached_categories")
     private val feedsKey = stringPreferencesKey("cached_feeds")
     private val entriesKey = stringPreferencesKey("cached_entries")
@@ -33,22 +34,50 @@ class ReaderRepository(private val context: Context) {
             chain.proceed(request)
         }
         val client = OkHttpClient.Builder().addInterceptor(auth).build()
-        api = Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL)
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build().create(ReaderApi::class.java)
+        api = createApi(BuildConfig.API_BASE_URL, client)
     }
 
-    suspend fun isAuthorized() = !context.authStore.data.first()[accessKey].isNullOrBlank()
+    suspend fun isAuthorized(): Boolean {
+        val preferences = context.authStore.data.first()
+        preferences[serverKey]?.let { api = createApi(it, authenticatedClient()) }
+        return !preferences[accessKey].isNullOrBlank()
+    }
 
-    suspend fun login(username: String, password: String) {
+    suspend fun login(serverUrl: String, username: String, password: String) {
+        val normalizedServer = normalizeServerUrl(serverUrl)
+        api = createApi(normalizedServer, authenticatedClient())
         val token = api.login(username, password)
-        context.authStore.edit { it[accessKey] = token.access_token; it[refreshKey] = token.refresh_token }
+        context.authStore.edit {
+            it[accessKey] = token.access_token
+            it[refreshKey] = token.refresh_token
+            it[serverKey] = normalizedServer
+        }
     }
 
     suspend fun logout() {
         context.authStore.edit { it.remove(accessKey); it.remove(refreshKey) }
+    }
+
+    private fun authenticatedClient(): OkHttpClient = OkHttpClient.Builder().addInterceptor { chain ->
+        val token = runBlocking { context.authStore.data.first()[accessKey] }
+        val request = chain.request().newBuilder().apply {
+            if (!token.isNullOrBlank()) addHeader("Authorization", "Bearer $token")
+        }.build()
+        chain.proceed(request)
+    }.build()
+
+    private fun createApi(baseUrl: String, client: OkHttpClient): ReaderApi = Retrofit.Builder()
+        .baseUrl(normalizeServerUrl(baseUrl))
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build().create(ReaderApi::class.java)
+
+    private fun normalizeServerUrl(value: String): String {
+        val trimmed = value.trim().removeSuffix("/")
+        require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+            "Server must start with http:// or https://"
+        }
+        return "$trimmed/"
     }
 
     suspend fun categories(): List<Category> = cachedList(categoriesKey) { api.categories() }.mapIndexed { index, item ->

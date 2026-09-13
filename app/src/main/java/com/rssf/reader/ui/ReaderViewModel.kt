@@ -27,8 +27,8 @@ class ReaderViewModel(private val repository: ReaderRepository) : ViewModel() {
 
     init { viewModelScope.launch { _authorized.value = repository.isAuthorized(); if (_authorized.value == true) refresh() } }
 
-    fun login(username: String, password: String) = viewModelScope.launch {
-        runCatching { repository.login(username, password); _authorized.value = true; refresh() }
+    fun login(serverUrl: String, username: String, password: String) = viewModelScope.launch {
+        runCatching { repository.login(serverUrl, username, password); _authorized.value = true; refresh() }
             .onFailure { _message.value = it.message ?: "Unable to sign in" }
     }
 

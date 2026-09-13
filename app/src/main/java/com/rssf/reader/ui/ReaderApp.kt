@@ -39,12 +39,17 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -63,24 +68,43 @@ private enum class AdminDialogKind { NewCategory, NewFeed, EditCategory, EditFee
 @Composable
 fun ReaderApp(context: Context, model: ReaderViewModel = viewModel(factory = ReaderViewModel.factory(context))) {
     val authorized by model.authorized.collectAsState()
+    val message by model.message.collectAsState()
     when (authorized) {
         null -> Box(Modifier.fillMaxSize().background(Page))
-        false -> LoginScreen { user, pass -> model.login(user, pass) }
+        false -> LoginScreen(message) { server, user, pass -> model.login(server, user, pass) }
         true -> ReaderHome(model)
     }
 }
 
 @Composable
-private fun LoginScreen(onLogin: (String, String) -> Unit) {
+private fun LoginScreen(message: String?, onLogin: (String, String, String) -> Unit) {
+    var server by remember { mutableStateOf("") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(Page).padding(28.dp), verticalArrangement = Arrangement.Center) {
         Text("RSSF", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Light)
         Text("Your reading, in one quiet place", color = Muted, modifier = Modifier.padding(top = 4.dp, bottom = 28.dp))
+        OutlinedTextField(server, { server = it }, Modifier.fillMaxWidth(), label = { Text("Server URL") }, placeholder = { Text("https://reader.example.com") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+        Spacer(Modifier.height(12.dp))
         OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text("Username") }, singleLine = true)
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text("Password") }, singleLine = true, visualTransformation = PasswordVisualTransformation())
-        Button(onClick = { onLogin(username, password) }, enabled = username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) { Text("SIGN IN") }
+        OutlinedTextField(
+            password,
+            { password = it },
+            Modifier.fillMaxWidth(),
+            label = { Text("Password") },
+            singleLine = true,
+            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            trailingIcon = {
+                IconButton({ passwordVisible = !passwordVisible }) {
+                    Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, "Toggle password visibility")
+                }
+            }
+        )
+        if (!message.isNullOrBlank()) Text(message, color = Color(0xFFEF5350), fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
+        Button(onClick = { onLogin(server, username, password) }, enabled = server.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) { Text("SIGN IN") }
     }
 }
 
