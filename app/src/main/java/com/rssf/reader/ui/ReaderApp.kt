@@ -27,6 +27,7 @@ import androidx.compose.material.OutlinedTextField
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
 import androidx.compose.material.TextButton
+import androidx.compose.material.TextFieldDefaults
 import androidx.compose.material.TopAppBar
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -78,16 +79,25 @@ fun ReaderApp(context: Context, model: ReaderViewModel = viewModel(factory = Rea
 
 @Composable
 private fun LoginScreen(message: String?, onLogin: (String, String, String) -> Unit) {
-    var server by remember { mutableStateOf("") }
+    var server by remember { mutableStateOf("rsse.muxi.de") }
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().background(Page).padding(28.dp), verticalArrangement = Arrangement.Center) {
         Text("RSSF", color = Color.White, fontSize = 36.sp, fontWeight = FontWeight.Light)
         Text("Your reading, in one quiet place", color = Muted, modifier = Modifier.padding(top = 4.dp, bottom = 28.dp))
-        OutlinedTextField(server, { server = it }, Modifier.fillMaxWidth(), label = { Text("Server URL") }, placeholder = { Text("https://reader.example.com") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri))
+        OutlinedTextField(
+            server,
+            { server = it },
+            Modifier.fillMaxWidth(),
+            label = { Text("Server") },
+            placeholder = { Text("rsse.muxi.de") },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            colors = loginFieldColors()
+        )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text("Username") }, singleLine = true)
+        OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text("Username") }, singleLine = true, colors = loginFieldColors())
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
             password,
@@ -101,12 +111,24 @@ private fun LoginScreen(message: String?, onLogin: (String, String, String) -> U
                 IconButton({ passwordVisible = !passwordVisible }) {
                     Icon(if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility, "Toggle password visibility")
                 }
-            }
+            },
+            colors = loginFieldColors()
         )
         if (!message.isNullOrBlank()) Text(message, color = Color(0xFFEF5350), fontSize = 13.sp, modifier = Modifier.padding(top = 12.dp))
         Button(onClick = { onLogin(server, username, password) }, enabled = server.isNotBlank() && username.isNotBlank() && password.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) { Text("SIGN IN") }
     }
 }
+
+@Composable
+private fun loginFieldColors() = TextFieldDefaults.outlinedTextFieldColors(
+    textColor = Color.White,
+    cursorColor = Color(0xFF03A9F4),
+    focusedBorderColor = Color(0xFF03A9F4),
+    unfocusedBorderColor = Color(0xFF777777),
+    focusedLabelColor = Color(0xFF03A9F4),
+    unfocusedLabelColor = Color(0xFFBDBDBD),
+    placeholderColor = Color(0xFF9E9E9E)
+)
 
 @Composable
 private fun ReaderHome(model: ReaderViewModel) {

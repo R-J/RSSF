@@ -74,10 +74,11 @@ class ReaderRepository(private val context: Context) {
 
     private fun normalizeServerUrl(value: String): String {
         val trimmed = value.trim().removeSuffix("/")
-        require(trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
-            "Server must start with http:// or https://"
+        require(trimmed.isNotBlank() && !trimmed.contains("/api/")) {
+            "Enter only the server host, for example rsse.muxi.de"
         }
-        return "$trimmed/"
+        val withScheme = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed else "https://$trimmed"
+        return "$withScheme/"
     }
 
     suspend fun categories(): List<Category> = cachedList(categoriesKey) { api.categories() }.mapIndexed { index, item ->
