@@ -16,9 +16,11 @@ Debug builds use an in-memory `MockReaderDataSource` by default, so the interfac
 
 The repository depends on the `ReaderDataSource` interface rather than the Retrofit service directly. To use the real API, set `USE_LOCAL_MOCK` to `false` in `app/build.gradle.kts`; the Retrofit adapter then becomes the only implementation change required.
 
+Every pushed change must include a freshly compiled debug APK at `app/build/outputs/apk/debug/app-debug.apk`. Build it with `gradle :app:assembleDebug`, verify the file exists, and commit it together with the source changes.
+
 ## Run
 
-Set the API URL in `app/build.gradle.kts` by changing `BuildConfig.API_BASE_URL`, then open the project in Android Studio and run the `app` configuration. The repository does not include an Android SDK, emulator, or server URL, so an APK cannot be built in this container.
+Set the API URL in `app/build.gradle.kts` by changing `BuildConfig.API_BASE_URL`, then open the project in Android Studio and run the `app` configuration. The checked-in debug APK can be installed directly on an Android 8.0+ device or emulator.
 
 ## Planned slices
 
