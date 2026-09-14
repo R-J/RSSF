@@ -17,7 +17,7 @@ import okhttp3.MediaType.Companion.toMediaType
 private val Context.authStore by preferencesDataStore("auth")
 class ReaderRepository(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
-    private var api: ReaderApi
+    private var dataSource: ReaderDataSource
     private val accessKey = stringPreferencesKey("access_token")
     private val refreshKey = stringPreferencesKey("refresh_token")
     private val serverKey = stringPreferencesKey("server_url")
@@ -34,19 +34,19 @@ class ReaderRepository(private val context: Context) {
             chain.proceed(request)
         }
         val client = OkHttpClient.Builder().addInterceptor(auth).build()
-        api = createApi(BuildConfig.API_BASE_URL, client)
+        dataSource = createDataSource(BuildConfig.API_BASE_URL, client)
     }
 
     suspend fun isAuthorized(): Boolean {
         val preferences = context.authStore.data.first()
-        preferences[serverKey]?.let { api = createApi(it, authenticatedClient()) }
+        preferences[serverKey]?.let { dataSource = createDataSource(it, authenticatedClient()) }
         return !preferences[accessKey].isNullOrBlank()
     }
 
     suspend fun login(serverUrl: String, username: String, password: String) {
         val normalizedServer = normalizeServerUrl(serverUrl)
-        api = createApi(normalizedServer, authenticatedClient())
-        val token = api.login(username, password)
+        dataSource = createDataSource(normalizedServer, authenticatedClient())
+        val token = dataSource.login(username, password)
         context.authStore.edit {
             it[accessKey] = token.access_token
             it[refreshKey] = token.refresh_token
@@ -66,11 +66,15 @@ class ReaderRepository(private val context: Context) {
         chain.proceed(request)
     }.build()
 
-    private fun createApi(baseUrl: String, client: OkHttpClient): ReaderApi = Retrofit.Builder()
+    private fun createDataSource(baseUrl: String, client: OkHttpClient): ReaderDataSource = if (BuildConfig.USE_LOCAL_MOCK) {
+        MockReaderDataSource()
+    } else {
+        RetrofitReaderDataSource(Retrofit.Builder()
         .baseUrl(normalizeServerUrl(baseUrl))
         .client(client)
         .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-        .build().create(ReaderApi::class.java)
+        .build().create(ReaderApi::class.java))
+    }
 
     private fun normalizeServerUrl(value: String): String {
         val trimmed = value.trim().removeSuffix("/")
@@ -81,44 +85,44 @@ class ReaderRepository(private val context: Context) {
         return "$withScheme/"
     }
 
-    suspend fun categories(): List<Category> = cachedList(categoriesKey) { api.categories() }.mapIndexed { index, item ->
+    suspend fun categories(): List<Category> = cachedList(categoriesKey) { dataSource.categories() }.mapIndexed { index, item ->
         Category(item.long("id", index.toLong()), item.string("name", "Untitled"), item.int("unread_count"))
     }
 
-    suspend fun feeds(): List<Feed> = cachedList(feedsKey) { api.feeds() }.mapIndexed { index, item ->
+    suspend fun feeds(): List<Feed> = cachedList(feedsKey) { dataSource.feeds() }.mapIndexed { index, item ->
         Feed(item.long("id", index.toLong()), item.string("title", item.string("name", "Feed")), item.string("url", ""), item.longOrNull("category_id"), item.int("unread_count"))
     }
 
-    suspend fun entries(): List<Entry> = cachedList(entriesKey) { api.entries() }.map { it.toEntry() }
-    suspend fun search(query: String): List<Entry> = api.search(query).asArray().map { it.toEntry() }
+    suspend fun entries(): List<Entry> = cachedList(entriesKey) { dataSource.entries() }.map { it.toEntry() }
+    suspend fun search(query: String): List<Entry> = dataSource.search(query).asArray().map { it.toEntry() }
 
     suspend fun createCategory(name: String) {
-        api.createCategory(CategoryCreateRequest(name))
+        dataSource.createCategory(CategoryCreateRequest(name))
         categories()
     }
 
     suspend fun renameCategory(id: Long, name: String) {
-        api.updateCategory(id, CategoryUpdateRequest(name = name))
+        dataSource.updateCategory(id, CategoryUpdateRequest(name = name))
         categories()
     }
 
     suspend fun deleteCategory(id: Long) {
-        api.deleteCategory(id)
+        dataSource.deleteCategory(id)
         categories()
     }
 
     suspend fun createFeed(url: String, categoryId: Long?) {
-        api.createFeed(FeedCreateRequest(url, categoryId))
+        dataSource.createFeed(FeedCreateRequest(url, categoryId))
         feeds()
     }
 
     suspend fun renameFeed(id: Long, title: String) {
-        api.updateFeed(id, FeedUpdateRequest(title = title))
+        dataSource.updateFeed(id, FeedUpdateRequest(title = title))
         feeds()
     }
 
     suspend fun deleteFeed(id: Long) {
-        api.deleteFeed(id)
+        dataSource.deleteFeed(id)
         feeds()
     }
 

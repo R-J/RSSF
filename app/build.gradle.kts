@@ -17,6 +17,7 @@ android {
         versionCode = 1
         versionName = "0.1.0"
         buildConfigField("String", "API_BASE_URL", "\"https://rss.example.com/\"")
+        buildConfigField("boolean", "USE_LOCAL_MOCK", "true")
     }
 
     compileOptions {

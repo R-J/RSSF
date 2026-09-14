@@ -10,6 +10,12 @@ Native Kotlin Android client for the RSS Reader Engine API described in `openapi
 - Article list, refresh, search, starred/read-later navigation, and sign out shell.
 - API methods for category/feed administration, entry updates, similar threads, OPML, and processing are defined in `ReaderApi` for the next UI slices.
 
+## Local API mock
+
+Debug builds use an in-memory `MockReaderDataSource` by default, so the interface can be tested without a server. It returns valid examples for the complete `ReaderApi` surface and keeps category, feed, article, search, star, and read-state changes during the app session. Use any non-empty server, username, and password on the login screen.
+
+The repository depends on the `ReaderDataSource` interface rather than the Retrofit service directly. To use the real API, set `USE_LOCAL_MOCK` to `false` in `app/build.gradle.kts`; the Retrofit adapter then becomes the only implementation change required.
+
 ## Run
 
 Set the API URL in `app/build.gradle.kts` by changing `BuildConfig.API_BASE_URL`, then open the project in Android Studio and run the `app` configuration. The repository does not include an Android SDK, emulator, or server URL, so an APK cannot be built in this container.
