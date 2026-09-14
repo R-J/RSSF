@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Button
@@ -34,6 +35,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Archive
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DragHandle
@@ -42,6 +46,8 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
@@ -62,6 +68,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.rssf.reader.data.Category
 import com.rssf.reader.data.Entry
 import com.rssf.reader.data.Feed
@@ -73,7 +80,7 @@ private val DividerColor = Color(0xFF252525)
 private val Muted = Color(0xFF9E9E9E)
 
 private enum class AdminDialogKind { NewCategory, NewFeed, EditCategory, EditFeed }
-private enum class DrawerSheetKind { Category, Feed, MoveCategory, MoveFeed }
+private enum class DrawerSheetKind { All, Category, Feed, MoveCategory, MoveFeed }
 
 @Composable
 fun ReaderApp(context: Context, model: ReaderViewModel = viewModel(factory = ReaderViewModel.factory(context))) {
@@ -149,7 +156,7 @@ private fun ReaderHome(model: ReaderViewModel) {
     var editMode by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    var title by remember { mutableStateOf("Today") }
+    var title by remember { mutableStateOf("All") }
     var adminDialog by remember { mutableStateOf<AdminDialogKind?>(null) }
     var selectedCategory by remember { mutableStateOf<Category?>(null) }
     var selectedFeed by remember { mutableStateOf<Feed?>(null) }
@@ -157,7 +164,10 @@ private fun ReaderHome(model: ReaderViewModel) {
     var sheetKind by remember { mutableStateOf<DrawerSheetKind?>(null) }
     var sheetCategory by remember { mutableStateOf<Category?>(null) }
     var sheetFeed by remember { mutableStateOf<Feed?>(null) }
+    var selectedEntry by remember { mutableStateOf<Entry?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(ModalBottomSheetValue.Hidden)
+    LaunchedEffect(drawer.currentValue) { if (drawer.currentValue == DrawerValue.Closed) editMode = false }
     fun showSheet(kind: DrawerSheetKind, category: Category? = null, feed: Feed? = null) {
         sheetKind = kind; sheetCategory = category; sheetFeed = feed
         scope.launch { sheetState.show() }
@@ -177,7 +187,9 @@ private fun ReaderHome(model: ReaderViewModel) {
                 onDeleteCategory = { id -> model.deleteCategory(id); scope.launch { sheetState.hide() } },
                 onDeleteFeed = { id -> model.deleteFeed(id); scope.launch { sheetState.hide() } },
                 onMoveCategory = { category, targetIndex -> model.moveCategory(category.id, targetIndex); scope.launch { sheetState.hide() } },
-                onMoveFeed = { feed, categoryId -> model.moveFeed(feed.id, categoryId); scope.launch { sheetState.hide() } }
+                onMoveFeed = { feed, categoryId -> model.moveFeed(feed.id, categoryId); scope.launch { sheetState.hide() } },
+                onMarkAllRead = { model.markAllRead(); scope.launch { sheetState.hide() } },
+                onAddCategory = { adminDialog = AdminDialogKind.NewCategory; scope.launch { sheetState.hide() } }
             )
         }
     ) {
@@ -190,10 +202,12 @@ private fun ReaderHome(model: ReaderViewModel) {
                 toggleCategory = { category -> expandedCategories = if (category.id in expandedCategories) expandedCategories - category.id else expandedCategories + category.id },
                 toggleEdit = { editMode = !editMode },
                 done = { editMode = false },
-                navigate = { title = it; scope.launch { drawer.close() } },
+                navigate = { title = it; editMode = false; scope.launch { drawer.close() } },
                 logout = { model.logout() },
+                settings = { showSettings = true },
                 addCategory = { adminDialog = AdminDialogKind.NewCategory },
                 addFeed = { adminDialog = AdminDialogKind.NewFeed },
+                showAllMenu = { showSheet(DrawerSheetKind.All) },
                 showCategoryMenu = { showSheet(DrawerSheetKind.Category, category = it) },
                 showFeedMenu = { showSheet(DrawerSheetKind.Feed, feed = it) },
                 moveCategory = { showSheet(DrawerSheetKind.MoveCategory, category = it) },
@@ -208,9 +222,19 @@ private fun ReaderHome(model: ReaderViewModel) {
                     IconButton({ searchOpen = !searchOpen; if (!searchOpen) { query = ""; model.refresh() } }) { Icon(if (searchOpen) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Search, "Search") }
                     IconButton({ model.refresh() }) { Icon(Icons.Default.MoreVert, "More") }
                 })
-            }) { padding -> ArticleList(entries, Modifier.padding(padding)) }
+            }) { padding ->
+                val visibleEntries = when (title) {
+                    "Recently Read" -> entries.filter { it.isRead }
+                    "Starred" -> entries.filter { it.isStarred }
+                    "archived" -> entries.filter { it.isRead }
+                    else -> entries
+                }
+                ArticleList(visibleEntries, Modifier.padding(padding)) { selectedEntry = it; model.markEntryRead(it.id) }
+            }
         }
     }
+    selectedEntry?.let { entry -> ArticleDetail(entry, onBack = { selectedEntry = null }) }
+    if (showSettings) SettingsScreen(onBack = { showSettings = false })
     when (adminDialog) {
         AdminDialogKind.NewCategory -> AdminDialog("New category", "Name", "", { value -> model.createCategory(value) }, { adminDialog = null })
         AdminDialogKind.NewFeed -> AdminDialog("Add feed", "RSS URL", "", { value -> model.createFeed(value, null) }, { adminDialog = null })
@@ -223,7 +247,7 @@ private fun ReaderHome(model: ReaderViewModel) {
 @Composable
 private fun ReaderDrawer(
     categories: List<Category>, feeds: List<Feed>, editMode: Boolean, expandedCategories: Set<Long>, toggleCategory: (Category) -> Unit,
-    toggleEdit: () -> Unit, done: () -> Unit, navigate: (String) -> Unit, logout: () -> Unit, addCategory: () -> Unit, addFeed: () -> Unit,
+    toggleEdit: () -> Unit, done: () -> Unit, navigate: (String) -> Unit, logout: () -> Unit, settings: () -> Unit, addCategory: () -> Unit, addFeed: () -> Unit, showAllMenu: () -> Unit,
     showCategoryMenu: (Category) -> Unit, showFeedMenu: (Feed) -> Unit, moveCategory: (Category) -> Unit, moveFeed: (Feed) -> Unit
 ) {
     Column(Modifier.fillMaxHeight().width(320.dp).background(Page)) {
@@ -231,9 +255,9 @@ private fun ReaderDrawer(
             Text("RSSF", color = Color.White, fontSize = 21.sp)
             Text(if (editMode) "Done" else "Edit", color = Color(0xFF03A9F4), modifier = Modifier.clickable { if (editMode) done() else toggleEdit() })
         }
-        DrawerItem("Today", Icons.Default.Check) { navigate("Today") }
-        DrawerItem("Read Later", Icons.Default.BookmarkBorder) { navigate("Read Later") }
+        DrawerItem("Recently Read", Icons.Default.AccessTime) { navigate("Recently Read") }
         DrawerItem("Starred", Icons.Default.StarBorder) { navigate("Starred") }
+        DrawerItem("archived", Icons.Default.Archive) { navigate("archived") }
         Divider(color = DividerColor, modifier = Modifier.padding(vertical = 14.dp))
         Row(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
             Text("FEEDS", color = Muted, fontWeight = FontWeight.Bold, fontSize = 14.sp)
@@ -242,13 +266,15 @@ private fun ReaderDrawer(
                 Text("Feed", color = Color(0xFF03A9F4), modifier = Modifier.clickable(onClick = addFeed))
             }
         }
-        DrawerItem("All", Icons.Default.Menu) { navigate("All") }
+        DrawerItem("All", Icons.Default.Menu) { if (editMode) showAllMenu() else navigate("All") }
         categories.forEach { category ->
             CategoryDrawerItem(category, feeds.filter { it.categoryId == category.id }, editMode, category.id in expandedCategories, { toggleCategory(category) }, { navigate(category.name) }, { showCategoryMenu(category) }, { moveCategory(category) }, navigate, showFeedMenu, moveFeed)
         }
         if (categories.isEmpty()) listOf("News", "Gadgets", "Develop").forEach { DrawerItem(it, Icons.AutoMirrored.Filled.ArrowBack) { navigate(it) } }
         feeds.filter { it.categoryId == null }.forEach { feed -> FeedDrawerItem(feed, editMode, navigate, showFeedMenu, moveFeed) }
-        Spacer(Modifier.weight(1f)); Text("Sign out", color = Color(0xFFEF5350), modifier = Modifier.padding(24.dp).clickable { logout() })
+        Spacer(Modifier.weight(1f))
+        DrawerItem("Settings", Icons.Default.Settings, onClick = settings)
+        DrawerItem("Logout", Icons.Default.PowerSettingsNew) { logout() }
     }
 }
 
@@ -274,9 +300,10 @@ private fun FeedDrawerItem(feed: Feed, editMode: Boolean, navigate: (String) -> 
 }
 
 @Composable
-private fun DrawerSheet(kind: DrawerSheetKind?, category: Category?, feed: Feed?, categories: List<Category>, onMarkCategoryRead: (Long) -> Unit, onMarkFeedRead: (Long) -> Unit, onRenameCategory: (Category) -> Unit, onRenameFeed: (Feed) -> Unit, onDeleteCategory: (Long) -> Unit, onDeleteFeed: (Long) -> Unit, onMoveCategory: (Category, Int) -> Unit, onMoveFeed: (Feed, Long?) -> Unit) {
+private fun DrawerSheet(kind: DrawerSheetKind?, category: Category?, feed: Feed?, categories: List<Category>, onMarkCategoryRead: (Long) -> Unit, onMarkFeedRead: (Long) -> Unit, onRenameCategory: (Category) -> Unit, onRenameFeed: (Feed) -> Unit, onDeleteCategory: (Long) -> Unit, onDeleteFeed: (Long) -> Unit, onMoveCategory: (Category, Int) -> Unit, onMoveFeed: (Feed, Long?) -> Unit, onMarkAllRead: () -> Unit, onAddCategory: () -> Unit) {
     Column(Modifier.fillMaxWidth().background(Panel).padding(bottom = 28.dp)) {
         when (kind) {
+            DrawerSheetKind.All -> { DrawerSheetHeader("All"); SheetAction("Mark as Read", Icons.Default.Check, onClick = onMarkAllRead); SheetAction("Add Category", Icons.Default.Add, onClick = onAddCategory) }
             DrawerSheetKind.Category -> category?.let { DrawerSheetHeader(it.name); SheetAction("Mark as Read", Icons.Default.Check) { onMarkCategoryRead(it.id) }; SheetAction("Rename", Icons.Default.Edit) { onRenameCategory(it) }; SheetAction("Delete", Icons.Default.Delete) { onDeleteCategory(it.id) } }
             DrawerSheetKind.Feed -> feed?.let { DrawerSheetHeader(it.title); SheetAction("Mark as Read", Icons.Default.Check) { onMarkFeedRead(it.id) }; SheetAction("Rename", Icons.Default.Edit) { onRenameFeed(it) }; SheetAction("Unfollow", Icons.Default.Delete) { onDeleteFeed(it.id) } }
             DrawerSheetKind.MoveCategory -> category?.let { DrawerSheetHeader("Move ${it.name}"); categories.forEachIndexed { index, target -> SheetAction(target.name, Icons.Default.DragHandle, enabled = target.id != it.id) { onMoveCategory(it, index) } } }
@@ -314,17 +341,49 @@ private fun DrawerItem(label: String, icon: androidx.compose.ui.graphics.vector.
 }
 
 @Composable
-private fun ArticleList(entries: List<Entry>, modifier: Modifier = Modifier) {
+private fun ArticleList(entries: List<Entry>, modifier: Modifier = Modifier, onOpen: (Entry) -> Unit = {}) {
     if (entries.isEmpty()) Box(modifier.fillMaxSize().background(Page), contentAlignment = Alignment.Center) { Text("Nothing new here", color = Muted) }
-    else LazyColumn(modifier.fillMaxSize().background(Page)) { items(entries, key = { it.id }) { ArticleRow(it) } }
+    else LazyColumn(modifier.fillMaxSize().background(Color.White)) { items(entries, key = { it.id }) { ArticleRow(it, onOpen) } }
 }
 
 @Composable
-private fun ArticleRow(entry: Entry) {
-    Column(Modifier.fillMaxWidth().clickable { }.padding(horizontal = 20.dp, vertical = 16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) { Text(entry.feedTitle.uppercase(), color = Color(0xFF03A9F4), fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f)); Text(entry.published, color = Muted, fontSize = 11.sp) }
-        Text(entry.title, color = if (entry.isRead) Muted else Color.White, fontSize = 18.sp, fontWeight = if (entry.isRead) FontWeight.Normal else FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
-        if (entry.summary.isNotBlank()) Text(entry.summary, color = Muted, fontSize = 14.sp, maxLines = 2, modifier = Modifier.padding(top = 5.dp))
-        Divider(color = DividerColor, modifier = Modifier.padding(top = 15.dp))
+private fun ArticleRow(entry: Entry, onOpen: (Entry) -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable { onOpen(entry) }.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (entry.imageUrl.isNotBlank()) AsyncImage(model = entry.imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth(0.3f).aspectRatio(1.35f))
+        Column(Modifier.padding(start = 14.dp).weight(1f)) {
+            Text(entry.title, color = if (entry.isRead) Muted else Color.Black, fontSize = 17.sp, fontWeight = FontWeight.Bold, maxLines = 3)
+            Text("${entry.sourceTitle.ifBlank { entry.feedTitle }} / ${relativeAge(entry.published)}", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+private fun relativeAge(published: String): String = when { published.contains("T") -> "2h"; published.endsWith("14") -> "2h"; published.endsWith("13") -> "1d"; else -> "2d" }
+
+@Composable
+private fun ArticleDetail(entry: Entry, onBack: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        TopAppBar(backgroundColor = Panel, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, title = { Text(entry.sourceTitle.ifBlank { entry.feedTitle }, color = Color.White) })
+        LazyColumn(Modifier.fillMaxSize().padding(20.dp)) {
+            item { Text(entry.title, color = Color.Black, fontSize = 26.sp, fontWeight = FontWeight.Bold); Text("${entry.feedTitle} · ${entry.author} · ${entry.published}", color = Muted, modifier = Modifier.padding(top = 10.dp, bottom = 22.dp)); if (entry.imageUrl.isNotBlank()) AsyncImage(model = entry.imageUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(190.dp)); Text(entry.content.ifBlank { entry.summary }, color = Color.DarkGray, fontSize = 17.sp, modifier = Modifier.padding(top = 20.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun SettingsScreen(onBack: () -> Unit) {
+    var server by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var theme by remember { mutableStateOf("Bright") }
+    var interval by remember { mutableStateOf("30 minutes") }
+    var retention by remember { mutableStateOf("30 days") }
+    Column(Modifier.fillMaxSize().background(Color.White)) {
+        TopAppBar(backgroundColor = Panel, navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } }, title = { Text("Settings", color = Color.White) })
+        Column(Modifier.padding(20.dp)) {
+            Text("Account", fontWeight = FontWeight.Bold, fontSize = 20.sp); OutlinedTextField(server, { server = it }, Modifier.fillMaxWidth().padding(top = 12.dp), label = { Text("Server") }); OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Username") }); OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("Password") }, visualTransformation = PasswordVisualTransformation())
+            Text("Theme", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.padding(top = 24.dp)); TextButton(onClick = { theme = if (theme == "Bright") "Dark" else "Bright" }) { Text(theme) }
+            Text("Fetch interval", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.padding(top = 16.dp)); TextButton(onClick = { interval = if (interval == "30 minutes") "60 minutes" else "30 minutes" }) { Text(interval) }
+            Text("Local archive", fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.padding(top = 16.dp)); TextButton(onClick = { retention = if (retention == "30 days") "1000 articles" else "30 days" }) { Text(retention) }
+        }
     }
 }

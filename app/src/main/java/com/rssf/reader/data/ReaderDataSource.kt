@@ -64,10 +64,10 @@ class MockReaderDataSource : ReaderDataSource {
         feed(3, "TechCrunch", "https://techcrunch.com/feed/", 1, 1)
     )
     private val entries = mutableListOf(
-        entry(1, "Android 16 makes everyday multitasking feel effortless", "The Verge", "2026-09-14", "The latest Android release focuses on useful details that make a busy reading day calmer.", false, true, 1),
-        entry(2, "Kotlin 2.3 brings a faster compiler pipeline", "Kotlin Blog", "2026-09-13", "A practical look at the new compiler improvements and what they mean for Android teams.", false, false, 2),
-        entry(3, "Small teams are building surprisingly ambitious products", "TechCrunch", "2026-09-12", "The tools are better, the feedback loops are shorter, and the best ideas are shipping sooner.", true, false, 3),
-        entry(4, "Designing feeds people can actually finish", "The Verge", "2026-09-11", "A thoughtful interface helps readers keep context without turning every article into a task.", false, false, 1)
+        entry(1, "Android 16 makes everyday multitasking feel effortless", "The Verge", "2026-09-14", "The latest Android release focuses on useful details that make a busy reading day calmer.", false, true, 1, "https://images.unsplash.com/photo-1607252650355-f7fd0460ccdb?w=640", "DER SPIEGEL - Wissenschaft"),
+        entry(2, "Kotlin 2.3 brings a faster compiler pipeline", "Kotlin Blog", "2026-09-13", "A practical look at the new compiler improvements and what they mean for Android teams.", false, false, 2, "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=640", "Kotlin Blog"),
+        entry(3, "Small teams are building surprisingly ambitious products", "TechCrunch", "2026-09-12", "The tools are better, the feedback loops are shorter, and the best ideas are shipping sooner.", true, false, 3, "https://images.unsplash.com/photo-1556761175-b413da4baf72?w=640", "TechCrunch"),
+        entry(4, "Designing feeds people can actually finish", "The Verge", "2026-09-11", "A thoughtful interface helps readers keep context without turning every article into a task.", false, false, 1, "https://images.unsplash.com/photo-1499750310107-5fef28a66643?w=640", "DER SPIEGEL - Wissenschaft")
     )
     private var nextCategoryId = 4L
     private var nextFeedId = 4L
@@ -178,9 +178,9 @@ class MockReaderDataSource : ReaderDataSource {
         fun feed(id: Long, title: String, url: String, categoryId: Long? = null, unread: Int = 0) = buildJsonObject {
             put("id", id); put("title", title); put("url", url); categoryId?.let { put("category_id", it) }; put("unread_count", unread)
         }
-        fun entry(id: Long, title: String, feedTitle: String, published: String, summary: String, isRead: Boolean, isStarred: Boolean, feedId: Long) = buildJsonObject {
+        fun entry(id: Long, title: String, feedTitle: String, published: String, summary: String, isRead: Boolean, isStarred: Boolean, feedId: Long, imageUrl: String, sourceTitle: String) = buildJsonObject {
             put("id", id); put("title", title); put("feed_title", feedTitle); put("author", "RSSF Editorial"); put("published_at", published)
-            put("summary", summary); put("is_read", isRead); put("is_starred", isStarred); put("feed_id", feedId)
+            put("summary", summary); put("content", summary + "\n\nThis is a longer local example article. It is supplied by the mock API so the reading experience can be tested before connecting the real server."); put("source_title", sourceTitle); put("image_url", imageUrl); put("is_read", isRead); put("is_starred", isStarred); put("feed_id", feedId)
         }
     }
 }

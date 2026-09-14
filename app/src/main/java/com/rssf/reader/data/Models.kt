@@ -38,6 +38,9 @@ data class Entry(
     val author: String = "",
     val published: String = "",
     val summary: String = "",
+    val content: String = "",
+    val imageUrl: String = "",
+    val sourceTitle: String = "",
     val isRead: Boolean = false,
     val isStarred: Boolean = false
 )

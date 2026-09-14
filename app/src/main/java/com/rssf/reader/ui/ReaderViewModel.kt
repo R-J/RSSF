@@ -51,6 +51,8 @@ class ReaderViewModel(private val repository: ReaderRepository) : ViewModel() {
     fun deleteFeed(id: Long) = admin { repository.deleteFeed(id); refreshLists() }
     fun markCategoryRead(id: Long) = admin { repository.markCategoryRead(id); refresh() }
     fun markFeedRead(id: Long) = admin { repository.markFeedRead(id); refresh() }
+    fun markAllRead() = admin { repository.markAllRead(); refresh() }
+    fun markEntryRead(id: Long) = admin { repository.updateEntry(id, mapOf("is_read" to true)); refresh() }
     fun moveFeed(id: Long, categoryId: Long?) = admin { repository.moveFeed(id, categoryId); refreshLists() }
     fun moveCategory(id: Long, sortOrder: Int) = admin { repository.moveCategory(id, sortOrder); refreshLists() }
 

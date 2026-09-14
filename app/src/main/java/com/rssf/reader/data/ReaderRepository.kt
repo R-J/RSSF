@@ -136,6 +136,15 @@ class ReaderRepository(private val context: Context) {
         entries()
     }
 
+    suspend fun markAllRead() {
+        dataSource.markAllRead()
+        entries()
+    }
+
+    suspend fun updateEntry(id: Long, body: Map<String, Boolean?>) {
+        dataSource.updateEntry(id, body)
+    }
+
     suspend fun moveFeed(id: Long, categoryId: Long?) {
         dataSource.updateFeed(id, FeedUpdateRequest(category_id = categoryId))
         feeds()
@@ -165,6 +174,7 @@ class ReaderRepository(private val context: Context) {
     private fun kotlinx.serialization.json.JsonElement.toEntry() = Entry(
         id = long("id", 0), title = string("title", "Untitled"), feedTitle = string("feed_title", string("source_title", "Feed")),
         author = string("author", ""), published = string("published_at", ""), summary = string("summary", string("content", "")),
+        content = string("content", string("summary", "")), imageUrl = string("image_url", ""), sourceTitle = string("source_title", string("feed_title", "Feed")),
         isRead = string("is_read", "false") == "true", isStarred = string("is_starred", "false") == "true"
     )
 }
