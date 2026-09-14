@@ -85,8 +85,24 @@ class MockReaderDataSource : ReaderDataSource {
 
     override suspend fun updateCategory(id: Long, body: CategoryUpdateRequest): JsonElement {
         val index = categories.indexOfFirst { it.long("id") == id }
-        if (index >= 0) categories[index] = categories[index].let { current ->
-            body.name?.let { name -> buildJsonObject { current.forEach { (key, value) -> put(key, value) }; put("name", name) } } ?: current
+        if (index >= 0) {
+            val updated = categories[index].let { current ->
+                buildJsonObject {
+                    current.forEach { (key, value) -> put(key, value) }
+                    body.name?.let { put("name", it) }
+                }
+            }
+            if (body.sort_order == null) categories[index] = updated
+            else {
+                categories.removeAt(index)
+                categories.add(body.sort_order.coerceIn(0, categories.size), updated)
+                categories.replaceAll { current ->
+                    buildJsonObject {
+                        current.forEach { (key, value) -> put(key, value) }
+                        put("sort_order", categories.indexOf(current))
+                    }
+                }
+            }
         }
         return categories.getOrElse(index) { buildJsonObject { put("id", id) } }
     }
@@ -135,7 +151,22 @@ class MockReaderDataSource : ReaderDataSource {
 
     override suspend fun star(id: Long) { updateEntry(id, mapOf("is_starred" to true)) }
     override suspend fun unstar(id: Long) { updateEntry(id, mapOf("is_starred" to false)) }
-    override suspend fun markAllRead(body: Map<String, Long?>) { entries.replaceAll { current -> buildJsonObject { current.forEach { (key, value) -> put(key, value) }; put("is_read", true) } } }
+    override suspend fun markAllRead(body: Map<String, Long?>) {
+        val categoryId = body["category_id"]
+        val feedId = body["feed_id"]
+        entries.replaceAll { current ->
+            val matches = (categoryId == null || current.long("category_id") == categoryId) && (feedId == null || current.long("feed_id") == feedId)
+            if (matches) buildJsonObject { current.forEach { (key, value) -> put(key, value) }; put("is_read", true) } else current
+        }
+        categoryId?.let { id ->
+            val index = categories.indexOfFirst { it.long("id") == id }
+            if (index >= 0) categories[index] = buildJsonObject { categories[index].forEach { (key, value) -> put(key, value) }; put("unread_count", 0) }
+        }
+        feedId?.let { id ->
+            val index = feeds.indexOfFirst { it.long("id") == id }
+            if (index >= 0) feeds[index] = buildJsonObject { feeds[index].forEach { (key, value) -> put(key, value) }; put("unread_count", 0) }
+        }
+    }
     override suspend fun similar(id: Long) = JsonArray(entries.filter { it.long("id") != id }.take(2))
 
     private fun JsonObject.long(key: String) = this[key]?.jsonPrimitive?.content?.toLongOrNull() ?: 0L

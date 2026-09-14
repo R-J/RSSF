@@ -126,6 +126,26 @@ class ReaderRepository(private val context: Context) {
         feeds()
     }
 
+    suspend fun markCategoryRead(id: Long) {
+        dataSource.markAllRead(mapOf("category_id" to id))
+        entries()
+    }
+
+    suspend fun markFeedRead(id: Long) {
+        dataSource.markAllRead(mapOf("feed_id" to id))
+        entries()
+    }
+
+    suspend fun moveFeed(id: Long, categoryId: Long?) {
+        dataSource.updateFeed(id, FeedUpdateRequest(category_id = categoryId))
+        feeds()
+    }
+
+    suspend fun moveCategory(id: Long, sortOrder: Int) {
+        dataSource.updateCategory(id, CategoryUpdateRequest(sort_order = sortOrder))
+        categories()
+    }
+
     private suspend fun cachedList(key: androidx.datastore.preferences.core.Preferences.Key<String>, fetch: suspend () -> kotlinx.serialization.json.JsonElement): List<kotlinx.serialization.json.JsonElement> {
         return runCatching { fetch().also { value -> context.authStore.edit { it[key] = value.toString() } }.asArray() }
             .getOrElse { context.authStore.data.first()[key]?.let { json.parseToJsonElement(it).asArray() } ?: emptyList() }

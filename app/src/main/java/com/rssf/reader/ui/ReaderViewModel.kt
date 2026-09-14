@@ -49,6 +49,10 @@ class ReaderViewModel(private val repository: ReaderRepository) : ViewModel() {
     fun createFeed(url: String, categoryId: Long?) = admin { repository.createFeed(url, categoryId); refreshLists() }
     fun renameFeed(id: Long, title: String) = admin { repository.renameFeed(id, title); refreshLists() }
     fun deleteFeed(id: Long) = admin { repository.deleteFeed(id); refreshLists() }
+    fun markCategoryRead(id: Long) = admin { repository.markCategoryRead(id); refresh() }
+    fun markFeedRead(id: Long) = admin { repository.markFeedRead(id); refresh() }
+    fun moveFeed(id: Long, categoryId: Long?) = admin { repository.moveFeed(id, categoryId); refreshLists() }
+    fun moveCategory(id: Long, sortOrder: Int) = admin { repository.moveCategory(id, sortOrder); refreshLists() }
 
     private fun admin(action: suspend () -> Unit) = viewModelScope.launch {
         runCatching { action() }.onFailure { _message.value = it.message ?: "Could not update RSSF" }
